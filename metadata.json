@@ -1,0 +1,6 @@
+{
+  "name": "Shipius Magos: 5-Stage Curriculum RL & PPO-GAE Robotics Lab",
+  "description": "Autonomous robotics laboratory featuring a 5-stage curriculum reinforcement learning environment with PPO-GAE, LIDAR raycasting, real-time telemetry, and policy visualization.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

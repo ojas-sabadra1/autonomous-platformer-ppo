@@ -1,0 +1,1853 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shipius Magos: 5-Stage Curriculum RL & PPO-GAE Robotics Lab</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #05060a;
+      color: #e0e6ed;
+      font-family: 'Courier New', Courier, monospace;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      min-height: 100vh;
+      padding: 6px;
+      overflow-x: hidden;
+      user-select: none;
+    }
+    #top-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 6px;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      max-width: 1280px;
+      background: #0d101b;
+      padding: 6px 10px;
+      border: 2px solid #252c44;
+      border-radius: 6px;
+    }
+    #engine-status {
+      font-size: 11px;
+      font-weight: bold;
+      padding: 4px 8px;
+      border-radius: 4px;
+      background: #0e2918;
+      color: #4eed84;
+      border: 1px solid #28663e;
+      min-width: 235px;
+      text-align: center;
+    }
+    .btn {
+      background: #141826;
+      color: #4eed84;
+      border: 1px solid #2e3856;
+      padding: 5px 9px;
+      font-family: inherit;
+      font-size: 11px;
+      font-weight: bold;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .btn:hover { background: #222942; border-color: #4eed84; }
+    .btn.active { background: #1c422a; border-color: #4eed84; color: #fff; }
+    .btn-ai { color: #ffd700; border-color: #6b581e; }
+    .btn-ai.active { background: #4d3d10; border-color: #ffd700; color: #fff; }
+    .btn-export { color: #00ffea; border-color: #1a5c66; background: #0e2229; }
+    .btn-export:hover { background: #163842; border-color: #00ffea; }
+    .btn-danger { color: #ff5c6c; border-color: #5c2630; }
+    .btn-danger:hover { background: #3d151d; border-color: #ff5c6c; }
+
+    #speed-controls {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      background: #080a12;
+      padding: 3px 8px;
+      border-radius: 4px;
+      border: 1px solid #252c44;
+    }
+
+    #main-layout {
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+      max-width: 1280px;
+      width: 100%;
+      justify-content: center;
+    }
+    #game-frame {
+      position: relative;
+      box-shadow: 0 14px 45px rgba(0, 0, 0, 0.95);
+      border: 3px solid #252c44;
+      border-radius: 6px;
+      background: #0a0c14;
+      overflow: hidden;
+      cursor: crosshair;
+      flex-shrink: 0;
+    }
+    canvas { display: block; image-rendering: pixelated; }
+
+    .side-panel {
+      width: 285px;
+      height: 476px;
+      background: #0d101b;
+      border: 3px solid #252c44;
+      border-radius: 6px;
+      padding: 8px 10px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      font-size: 10.5px;
+      flex-shrink: 0;
+    }
+    .panel-title {
+      color: #ffd700;
+      font-size: 11px;
+      font-weight: bold;
+      border-bottom: 1px solid #252c44;
+      padding-bottom: 2px;
+      margin-bottom: 4px;
+      text-align: center;
+    }
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 2px;
+      color: #a4b0cc;
+    }
+    .stat-val { font-weight: bold; color: #fff; }
+    .pos { color: #4eed84; }
+    .neg { color: #ff5263; }
+    .gold { color: #ffd700; }
+    .cyan { color: #00ffea; }
+
+    .slider-group {
+      margin-bottom: 2px;
+      background: #080a12;
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: 1px solid #1b2133;
+    }
+    .slider-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 9px;
+      margin-bottom: 1px;
+    }
+    .slider-group input[type=range] {
+      width: 100%;
+      height: 8px;
+      accent-color: #4eed84;
+      cursor: pointer;
+    }
+
+    #history-list {
+      height: 64px;
+      overflow-y: auto;
+      background: #080a10;
+      border: 1px solid #1d2336;
+      padding: 4px;
+      font-size: 9.5px;
+      line-height: 1.35;
+    }
+    #hint-bar {
+      margin-top: 6px;
+      font-size: 11px;
+      color: #98a3bd;
+      text-align: center;
+    }
+    #hint-bar span { color: #4eed84; font-weight: bold; }
+  </style>
+</head>
+<body>
+
+<div id="top-bar">
+  <div id="engine-status">CURRICULUM PPO-GAE: READY</div>
+  <button class="btn btn-ai active" id="btn-ai" type="button">[B] PPO-GAE Robot Brain: ON</button>
+  <button class="btn" id="btn-pause" type="button">[P] Pause / Stop</button>
+
+  <div id="speed-controls">
+    <span style="font-size:11px; color:#00ffea; font-weight:bold;">SPEED:</span>
+    <button class="btn active" id="spd-1" type="button" data-spd="1">1x</button>
+    <button class="btn" id="spd-10" type="button" data-spd="10">10x</button>
+    <button class="btn" id="spd-100" type="button" data-spd="100">100x</button>
+    <button class="btn" id="spd-1000" type="button" data-spd="1000">1,000x</button>
+    <button class="btn" id="spd-10000" type="button" data-spd="10000">10,000x</button>
+    <button class="btn" id="spd-100000" type="button" data-spd="100000">100,000x</button>
+    <span id="speed-label" style="font-size:11px; color:#ffd700; min-width:58px; text-align:right; font-weight:bold;">1x</span>
+  </div>
+
+  <button class="btn btn-export" id="btn-dl-png" type="button">Save Graph (.PNG)</button>
+  <button class="btn btn-export" id="btn-dl-csv" type="button">Save Data (.CSV)</button>
+  <button class="btn btn-export" id="btn-dl-json" type="button">Save Brain (.JSON)</button>
+  <button class="btn btn-export" id="btn-ul-json" type="button">Load Brain (.JSON)</button>
+  <input type="file" id="file-input-json" accept=".json" style="display:none;">
+  <button class="btn btn-danger" id="btn-wipe" type="button">Wipe Brain (0.00 Prior)</button>
+</div>
+
+<div id="main-layout">
+  <!-- LEFT PANEL: ROBOTICS LOCOMOTION REWARD SLIDERS + ACTOR-CRITIC POLICY -->
+  <div class="side-panel">
+    <div>
+      <div class="panel-title">ROBOTICS VELOCITY & SAFETY REWARDS</div>
+      <div class="slider-group">
+        <div class="slider-header"><span class="cyan">Target +Vx Tracking (/m):</span><span class="stat-val cyan" id="lbl-xdist">+1,000</span></div>
+        <input type="range" id="sl-xdist" min="100" max="2500" step="50" value="1000">
+      </div>
+      <div class="slider-group">
+        <div class="slider-header"><span class="neg">Reverse -Vx Penalty (/m):</span><span class="stat-val neg" id="lbl-back">-1,500</span></div>
+        <input type="range" id="sl-back" min="100" max="4000" step="50" value="1500">
+      </div>
+      <div class="slider-group">
+        <div class="slider-header"><span class="neg">Collision / Heart Lost:</span><span class="stat-val neg" id="lbl-heart">-20,000</span></div>
+        <input type="range" id="sl-heart" min="2000" max="50000" step="1000" value="20000">
+      </div>
+      <div class="slider-group">
+        <div class="slider-header"><span class="neg">Terminal Fall / Stall:</span><span class="stat-val neg" id="lbl-death">-65,000</span></div>
+        <input type="range" id="sl-death" min="10000" max="150000" step="2500" value="65000">
+      </div>
+      <div class="slider-group">
+        <div class="slider-header"><span class="pos">Gap / Obstacle Clearance:</span><span class="stat-val pos" id="lbl-evade">+6,000</span></div>
+        <input type="range" id="sl-evade" min="500" max="12000" step="250" value="6000">
+      </div>
+      <div class="slider-group">
+        <div class="slider-header"><span class="gold">Sector Waypoint Reached:</span><span class="stat-val gold" id="lbl-sector">+25,000</span></div>
+        <input type="range" id="sl-sector" min="5000" max="60000" step="1000" value="25000">
+      </div>
+      <div class="slider-group">
+        <div class="slider-header"><span class="pos">Dynamic Threat Neutralized:</span><span class="stat-val pos" id="lbl-ghost">+2,500</span></div>
+        <input type="range" id="sl-ghost" min="100" max="10000" step="100" value="2500">
+      </div>
+      <div class="slider-group">
+        <div class="slider-header"><span class="neg">Actuator / Spell Cost:</span><span class="stat-val neg" id="lbl-bullet">-800</span></div>
+        <input type="range" id="sl-bullet" min="50" max="5000" step="50" value="800">
+      </div>
+      <div class="slider-group">
+        <div class="slider-header"><span class="gold">Bonus Node Collected:</span><span class="stat-val gold" id="lbl-coin">+1,000</span></div>
+        <input type="range" id="sl-coin" min="100" max="5000" step="100" value="1000">
+      </div>
+    </div>
+
+    <div>
+      <div class="panel-title">ACTOR π(a|z) & ADVANTAGE A(z,a)</div>
+      <div class="stat-row"><span>Act #0 (Left):</span><span class="stat-val" id="ui-w0">16.7% (A:+0.0)</span></div>
+      <div class="stat-row"><span>Act #1 (Right):</span><span class="stat-val" id="ui-w1">16.7% (A:+0.0)</span></div>
+      <div class="stat-row"><span>Act #2 (Jump):</span><span class="stat-val" id="ui-w2">16.7% (A:+0.0)</span></div>
+      <div class="stat-row"><span>Act #3 (Leap+R):</span><span class="stat-val" id="ui-w3">16.7% (A:+0.0)</span></div>
+      <div class="stat-row"><span>Act #4 (Climb/E):</span><span class="stat-val" id="ui-w4">16.7% (A:+0.0)</span></div>
+      <div class="stat-row"><span>Act #5 (Fire+R):</span><span class="stat-val" id="ui-w5">16.7% (A:+0.0)</span></div>
+    </div>
+  </div>
+
+  <!-- CENTER: CANVAS -->
+  <div id="game-frame">
+    <canvas id="canvas" width="660" height="476"></canvas>
+  </div>
+
+  <!-- RIGHT PANEL: TELEMETRY & GRAPH -->
+  <div class="side-panel">
+    <div>
+      <div class="panel-title">CURRICULUM & PPO TELEMETRY</div>
+      <div class="stat-row"><span>Episode (Rollout #):</span><span class="stat-val gold" id="ui-gen">#1</span></div>
+      <div class="stat-row"><span>Curriculum Zone:</span><span class="stat-val gold" id="ui-stage">1: LAVA ONLY</span></div>
+      <div class="stat-row"><span>Exteroceptive Latent (z):</span><span class="stat-val cyan" id="ui-mode">FLAT RUNWAY</span></div>
+      <div class="stat-row"><span>Critic Value V(z):</span><span class="stat-val pos" id="ui-seed">+0.0</span></div>
+      <div class="stat-row"><span>MAX X TRAVELLED:</span><span class="stat-val cyan" style="font-size:12px;" id="ui-max-dist">0.0m (Sec 1)</span></div>
+      <div class="stat-row"><span>MAX SCORE TILL NOW:</span><span class="stat-val pos" style="font-size:12px;" id="ui-best">0</span></div>
+      <div class="stat-row"><span>Physics Steps/Sec:</span><span class="stat-val cyan" id="ui-sps">60</span></div>
+    </div>
+
+    <div>
+      <div class="panel-title">CURRENT ROLLOUT REWARDS</div>
+      <div class="stat-row"><span>Velocity Tracking (+X):</span><span class="stat-val cyan" id="ui-r-dist">+0</span></div>
+      <div class="stat-row"><span>Obstacles Cleared:</span><span class="stat-val pos" id="ui-r-evade">+0 (0)</span></div>
+      <div class="stat-row"><span>Waypoints Reached:</span><span class="stat-val gold" id="ui-r-sec">+0 (0)</span></div>
+      <div class="stat-row"><span>Threats Neutralized:</span><span class="stat-val pos" id="ui-r-ghost">+0 (0)</span></div>
+      <div class="stat-row"><span>Bonus Nodes:</span><span class="stat-val gold" id="ui-r-coin">+0 (0)</span></div>
+      <div class="stat-row"><span>Integrity Bonus:</span><span class="stat-val pos" id="ui-r-hp">+5000 (5)</span></div>
+      <div class="stat-row"><span>Actuator Energy Cost:</span><span class="stat-val neg" id="ui-r-bul">-0 (0)</span></div>
+      <div class="stat-row"><span>Collision / Stall Cost:</span><span class="stat-val neg" id="ui-r-dmg">-0 (0)</span></div>
+      <div class="stat-row" style="border-top:1px solid #252c44; padding-top:2px; margin-top:2px;">
+        <span>LIVE NET RETURN:</span><span class="stat-val cyan" style="font-size:12px;" id="ui-r-total">0</span>
+      </div>
+    </div>
+
+    <div>
+      <div class="panel-title">MAX X (m) VS EPISODES GRAPH</div>
+      <canvas id="chart-canvas" width="254" height="68" style="background:#080a10; border:1px solid #1d2336; margin-bottom:4px;"></canvas>
+      <div id="history-list"></div>
+    </div>
+  </div>
+</div>
+
+<div id="hint-bar">
+  <span>5-Stage Curriculum:</span> 0–1000m: Lava Only | 1000–2000m: Spikes Only | 2000–3000m: Ladders | 3000–4000m: Ghosts | 4000m+: Combined Mastery
+</div>
+
+<script>
+(function() {
+  "use strict";
+
+  function setStatus(text, isErr) {
+    var badge = document.getElementById('engine-status');
+    if (!badge) return;
+    badge.textContent = text;
+    badge.style.background = isErr ? '#5a121b' : '#0e2918';
+    badge.style.color = isErr ? '#ff7b89' : '#4eed84';
+  }
+
+  window.onerror = function(msg, url, line) {
+    setStatus('RECOVERED L' + line + ': ' + msg, true);
+    return true;
+  };
+
+  function safeNum(val, fallback) {
+    var n = Number(val);
+    return (typeof n === 'number' && isFinite(n)) ? n : (fallback || 0);
+  }
+
+  function safeSetText(id, text) {
+    var el = document.getElementById(id);
+    if (el) el.textContent = text;
+  }
+
+  function safeGetInputNum(id, fallback) {
+    var el = document.getElementById(id);
+    if (el) return safeNum(el.value, fallback);
+    return fallback;
+  }
+
+  function bindEventSafe(id, evType, fn) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener(evType, fn);
+  }
+
+  function bindClickSafe(id, fn) {
+    var el = document.getElementById(id);
+    if (el) {
+      el.addEventListener('click', function(e) {
+        this.blur();
+        fn(e);
+      });
+    }
+  }
+
+  // ===========================================================================
+  // 1. ROBOTICS REWARD HYPERPARAMETERS
+  // ===========================================================================
+  var REWARD_CFG = {
+    xDistPerMeter: 1000,
+    backPenaltyPerMeter: 1500,
+    heartLostPenalty: 20000,
+    deathPenalty: 65000,
+    evadeReward: 6000,
+    sectorClear: 25000,
+    ghostKill: 2500,
+    bulletCost: 800,
+    coinReward: 1000
+  };
+
+  function syncSliders() {
+    REWARD_CFG.xDistPerMeter = safeGetInputNum('sl-xdist', 1000);
+    REWARD_CFG.backPenaltyPerMeter = safeGetInputNum('sl-back', 1500);
+    REWARD_CFG.heartLostPenalty = safeGetInputNum('sl-heart', 20000);
+    REWARD_CFG.deathPenalty = safeGetInputNum('sl-death', 65000);
+    REWARD_CFG.evadeReward = safeGetInputNum('sl-evade', 6000);
+    REWARD_CFG.sectorClear = safeGetInputNum('sl-sector', 25000);
+    REWARD_CFG.ghostKill = safeGetInputNum('sl-ghost', 2500);
+    REWARD_CFG.bulletCost = safeGetInputNum('sl-bullet', 800);
+    REWARD_CFG.coinReward = safeGetInputNum('sl-coin', 1000);
+
+    safeSetText('lbl-xdist', '+' + REWARD_CFG.xDistPerMeter.toLocaleString());
+    safeSetText('lbl-back', '-' + REWARD_CFG.backPenaltyPerMeter.toLocaleString());
+    safeSetText('lbl-heart', '-' + REWARD_CFG.heartLostPenalty.toLocaleString());
+    safeSetText('lbl-death', '-' + REWARD_CFG.deathPenalty.toLocaleString());
+    safeSetText('lbl-evade', '+' + REWARD_CFG.evadeReward.toLocaleString());
+    safeSetText('lbl-sector', '+' + REWARD_CFG.sectorClear.toLocaleString());
+    safeSetText('lbl-ghost', '+' + REWARD_CFG.ghostKill.toLocaleString());
+    safeSetText('lbl-bullet', '-' + REWARD_CFG.bulletCost.toLocaleString());
+    safeSetText('lbl-coin', '+' + REWARD_CFG.coinReward.toLocaleString());
+  }
+
+  bindEventSafe('sl-ghost', 'input', function() {
+    var gVal = safeGetInputNum('sl-ghost', 2500);
+    var bInput = document.getElementById('sl-bullet');
+    if (bInput) bInput.value = Math.max(50, Math.round(gVal * 0.32));
+    syncSliders();
+  });
+
+  bindEventSafe('sl-xdist', 'input', function() {
+    var xVal = safeGetInputNum('sl-xdist', 1000);
+    var bkInput = document.getElementById('sl-back');
+    if (bkInput) bkInput.value = Math.round(xVal * 1.5);
+    syncSliders();
+  });
+
+  var sliderIds = ['sl-death', 'sl-sector', 'sl-xdist', 'sl-back', 'sl-evade', 'sl-bullet', 'sl-coin', 'sl-heart'];
+  for (var sIdx = 0; sIdx < sliderIds.length; sIdx++) {
+    bindEventSafe(sliderIds[sIdx], 'input', syncSliders);
+  }
+
+  // ===========================================================================
+  // 2. CANVAS & DESKTOP INPUTS
+  // ===========================================================================
+  var TILE = 28;
+  var MAP_ROWS = 17;
+  var SECTOR_COLS = 34;
+
+  var canvas = document.getElementById('canvas');
+  var ctx = canvas ? canvas.getContext('2d') : null;
+  var mouse = { x: 340, y: 240, worldX: 340, worldY: 240, down: false };
+  var keys = {};
+
+  var aiEnabled = true;
+  var isPaused = false;
+  var targetSimSpeed = 1;
+  var actualStepsThisSec = 0;
+  var displayedSPS = 60;
+  var lastSpsTime = Date.now();
+  var frameCounter = 0;
+
+  var audioCtx = null;
+  function playTone(freq, type, dur, endFreq, vol) {
+    if (isPaused || targetSimSpeed > 10) return;
+    try {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      var o = audioCtx.createOscillator();
+      var g = audioCtx.createGain();
+      o.type = type || 'sine';
+      o.frequency.setValueAtTime(freq, audioCtx.currentTime);
+      if (endFreq) o.frequency.exponentialRampToValueAtTime(Math.max(20, endFreq), audioCtx.currentTime + dur);
+      g.gain.setValueAtTime(vol || 0.05, audioCtx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+      o.connect(g);
+      g.connect(audioCtx.destination);
+      o.start();
+      o.stop(audioCtx.currentTime + dur);
+    } catch (e) {}
+  }
+
+  if (canvas) {
+    canvas.addEventListener('mousemove', function(e) {
+      var rect = canvas.getBoundingClientRect();
+      mouse.x = (e.clientX - rect.left) * (canvas.width / rect.width);
+      mouse.y = (e.clientY - rect.top) * (canvas.height / rect.height);
+    });
+    canvas.addEventListener('mousedown', function(e) {
+      if (e.button === 0) mouse.down = true;
+    });
+  }
+
+  window.addEventListener('mouseup', function(e) { if (e.button === 0) mouse.down = false; });
+  window.addEventListener('keydown', function(e) {
+    keys[e.code] = true;
+    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].indexOf(e.code) !== -1) e.preventDefault();
+    if (e.code === 'KeyB') window.toggleAI();
+    if (e.code === 'KeyP') window.togglePause();
+    if (e.code === 'KeyR') concludeAttempt("Manual Reset", false);
+  });
+  window.addEventListener('keyup', function(e) { keys[e.code] = false; });
+
+  // ===========================================================================
+  // 3. AUTONOMOUS ROBOTICS BRAIN: ACTOR-CRITIC PPO-CLIP + GAE(lambda) + MPPI
+  // ===========================================================================
+  var NUM_ACTIONS = 6;
+  var NUM_FEATURES = 8;
+  var RL_STORAGE_KEY = 'shipius_curriculum_ppo_v38';
+
+  function createZeroMatrix() {
+    var mat = [];
+    for (var a = 0; a < NUM_ACTIONS; a++) {
+      mat.push([0, 0, 0, 0, 0, 0, 0, 0]);
+    }
+    return mat;
+  }
+
+  var rlBrain = {
+    attempt: 1,
+    bestReward: null,
+    maxDistMeters: 0,
+    maxSector: 1,
+    actorWeights: createZeroMatrix(),
+    eliteActorWeights: createZeroMatrix(),
+    criticWeights: [0, 0, 0, 0, 0, 0, 0, 0],
+    latentActorLogits: {},
+    latentCriticV: {},
+    latentActionAdv: {},
+    latentCounts: {},
+    lastProbs: [0.167, 0.167, 0.167, 0.167, 0.167, 0.167],
+    lastAdv: [0, 0, 0, 0, 0, 0],
+    lastCriticVal: 0,
+    activeContextText: 'FLAT RUNWAY',
+    activeStageText: '1: LAVA ONLY',
+    currentSeedStr: 'CUR-1',
+    fullHistory: []
+  };
+
+  function cloneMatrix(mat) {
+    var out = [];
+    for (var a = 0; a < NUM_ACTIONS; a++) {
+      var row = [];
+      for (var f = 0; f < NUM_FEATURES; f++) {
+        row.push(safeNum(mat && mat[a] ? mat[a][f] : 0, 0));
+      }
+      out.push(row);
+    }
+    return out;
+  }
+
+  function sanitizeBrain(obj) {
+    if (!obj || typeof obj !== 'object') return;
+    rlBrain.attempt = Math.max(1, Math.floor(safeNum(obj.attempt, 1)));
+    rlBrain.bestReward = (obj.bestReward !== null && obj.bestReward !== undefined) ? safeNum(obj.bestReward, 0) : null;
+    rlBrain.maxDistMeters = Math.max(0, safeNum(obj.maxDistMeters, 0));
+    rlBrain.maxSector = Math.max(1, Math.floor(safeNum(obj.maxSector, 1)));
+
+    if (Array.isArray(obj.actorWeights) && obj.actorWeights.length === NUM_ACTIONS) {
+      rlBrain.actorWeights = cloneMatrix(obj.actorWeights);
+    }
+    if (Array.isArray(obj.eliteActorWeights) && obj.eliteActorWeights.length === NUM_ACTIONS) {
+      rlBrain.eliteActorWeights = cloneMatrix(obj.eliteActorWeights);
+    } else {
+      rlBrain.eliteActorWeights = cloneMatrix(rlBrain.actorWeights);
+    }
+    if (Array.isArray(obj.criticWeights) && obj.criticWeights.length === NUM_FEATURES) {
+      for (var f = 0; f < NUM_FEATURES; f++) rlBrain.criticWeights[f] = safeNum(obj.criticWeights[f], 0);
+    }
+
+    if (obj.latentActorLogits && typeof obj.latentActorLogits === 'object') rlBrain.latentActorLogits = obj.latentActorLogits;
+    if (obj.latentCriticV && typeof obj.latentCriticV === 'object') rlBrain.latentCriticV = obj.latentCriticV;
+    if (obj.latentActionAdv && typeof obj.latentActionAdv === 'object') rlBrain.latentActionAdv = obj.latentActionAdv;
+    if (obj.latentCounts && typeof obj.latentCounts === 'object') rlBrain.latentCounts = obj.latentCounts;
+
+    if (Array.isArray(obj.fullHistory)) {
+      var cleanHistory = [];
+      for (var i = 0; i < obj.fullHistory.length; i++) {
+        var item = obj.fullHistory[i];
+        if (item && typeof item === 'object' && isFinite(item.attempt) && isFinite(item.dist)) {
+          cleanHistory.push(item);
+        }
+      }
+      rlBrain.fullHistory = cleanHistory;
+    }
+  }
+
+  function loadRLBrain() {
+    try {
+      var raw = window.localStorage.getItem(RL_STORAGE_KEY);
+      if (raw) sanitizeBrain(JSON.parse(raw));
+    } catch (e) {}
+  }
+
+  function saveRLBrain() {
+    try {
+      var copy = {
+        attempt: rlBrain.attempt,
+        bestReward: rlBrain.bestReward,
+        maxDistMeters: rlBrain.maxDistMeters,
+        maxSector: rlBrain.maxSector,
+        actorWeights: rlBrain.actorWeights,
+        eliteActorWeights: rlBrain.eliteActorWeights,
+        criticWeights: rlBrain.criticWeights,
+        latentActorLogits: rlBrain.latentActorLogits,
+        latentCriticV: rlBrain.latentCriticV,
+        latentActionAdv: rlBrain.latentActionAdv,
+        latentCounts: rlBrain.latentCounts,
+        fullHistory: rlBrain.fullHistory.slice(-400)
+      };
+      window.localStorage.setItem(RL_STORAGE_KEY, JSON.stringify(copy));
+    } catch (e) {}
+  }
+
+  function wipeBrain() {
+    try { window.localStorage.removeItem(RL_STORAGE_KEY); } catch (e) {}
+    rlBrain = {
+      attempt: 1,
+      bestReward: null,
+      maxDistMeters: 0,
+      maxSector: 1,
+      actorWeights: createZeroMatrix(),
+      eliteActorWeights: createZeroMatrix(),
+      criticWeights: [0, 0, 0, 0, 0, 0, 0, 0],
+      latentActorLogits: {},
+      latentCriticV: {},
+      latentActionAdv: {},
+      latentCounts: {},
+      lastProbs: [0.167, 0.167, 0.167, 0.167, 0.167, 0.167],
+      lastAdv: [0, 0, 0, 0, 0, 0],
+      lastCriticVal: 0,
+      activeContextText: 'FLAT RUNWAY',
+      activeStageText: '1: LAVA ONLY',
+      currentSeedStr: 'CUR-1',
+      fullHistory: []
+    };
+    startNewAttempt();
+  }
+
+  // ===========================================================================
+  // 4. 5-STAGE CURRICULUM RANDOMIZED LEVEL GENERATOR (1,000m PER STAGE!)
+  // ===========================================================================
+  // Note: 1 Sector = 34 tiles * 28px = 952px / 12 px_per_meter = 79.33 meters.
+  // Therefore, 13 Sectors = ~1,031 meters!
+  //   Stage 1 (0m - 1,000m   | Sectors 1..13):  ONLY Lava Pits (1-2 tiles wide)
+  //   Stage 2 (1,000m - 2,000m | Sectors 14..26): ONLY Floor Spikes
+  //   Stage 3 (2,000m - 3,000m | Sectors 27..39): ONLY Ladders & Elevated Platforms (+ Lava)
+  //   Stage 4 (3,000m - 4,000m | Sectors 40..52): ONLY Patrolling Ghosts on Flat Ground
+  //   Stage 5 (4,000m+         | Sectors 53+):    Gradual Combined Mastery of All Obstacles
+  var worldCols = 0;
+  var grid = [];
+  var generatedSectors = 0;
+
+  var player = null;
+  var ghosts = [];
+  var chests = [];
+  var coins = [];
+  var portals = [];
+  var spells = [];
+  var breadcrumbs = {};
+  var ep = {};
+  var isConcluding = false;
+
+  function randInt(min, max) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+  }
+
+  function getCurriculumStageForMeters(meters) {
+    if (meters < 1000) return { id: 1, label: '1: LAVA ONLY (0-1km)' };
+    if (meters < 2000) return { id: 2, label: '2: SPIKES ONLY (1-2km)' };
+    if (meters < 3000) return { id: 3, label: '3: LADDERS (2-3km)' };
+    if (meters < 4000) return { id: 4, label: '4: GHOSTS ONLY (3-4km)' };
+    return { id: 5, label: '5: COMBINED MASTERY (4km+)' };
+  }
+
+  function initWorld() {
+    grid = [];
+    for (var r = 0; r < MAP_ROWS; r++) { grid[r] = []; }
+    worldCols = 0;
+    generatedSectors = 0;
+    ghosts = []; chests = []; coins = []; portals = []; spells = []; breadcrumbs = {};
+    rlBrain.currentSeedStr = 'CUR-' + randInt(100, 999);
+    appendCurriculumSector();
+    appendCurriculumSector();
+    appendCurriculumSector();
+  }
+
+  function pruneEntities() {
+    if (!player) return;
+    var safeX = player.x - 1200;
+    var g2 = []; for (var i = 0; i < ghosts.length; i++) if (ghosts[i].x > safeX || ghosts[i].hp > 0) g2.push(ghosts[i]); ghosts = g2;
+    var ch2 = []; for (var j = 0; j < chests.length; j++) if (chests[j].x > safeX) ch2.push(chests[j]); chests = ch2;
+    var co2 = []; for (var k = 0; k < coins.length; k++) if (coins[k].x > safeX && !coins[k].collected) co2.push(coins[k]); coins = co2;
+    var po2 = []; for (var p = 0; p < portals.length; p++) if (portals[p].c * TILE > safeX) po2.push(portals[p]); portals = po2;
+  }
+
+  function spawnRandomGhost(minC, maxC, rowY) {
+    if (maxC <= minC + 1) return;
+    var minPx = minC * TILE;
+    var maxPx = maxC * TILE;
+    var randStartPx = minPx + Math.random() * (maxPx - minPx);
+    ghosts.push({
+      x: randStartPx,
+      y: rowY * TILE,
+      minX: minPx,
+      maxX: maxPx,
+      vx: 1.05 + Math.random() * 0.2,
+      dir: Math.random() < 0.5 ? 1 : -1,
+      hp: 2,
+      maxHp: 2,
+      bob: Math.random() * 6.28
+    });
+  }
+
+  function appendCurriculumSector() {
+    generatedSectors++;
+    var sIdx = generatedSectors;
+    var startC = worldCols;
+    var endC = startC + SECTOR_COLS;
+
+    // Determine exact distance (meters) at the start of this sector
+    var sectorStartMeters = Math.max(0, ((startC * TILE) - (3 * TILE)) / 12);
+    var stageInfo = getCurriculumStageForMeters(sectorStartMeters);
+    var stageId = stageInfo.id;
+
+    for (var r = 0; r < MAP_ROWS; r++) {
+      for (var c = startC; c < endC; c++) {
+        if (r === 0 || r >= 14) grid[r][c] = '1';
+        else if (r === 13) grid[r][c] = '2';
+        else grid[r][c] = '.';
+      }
+    }
+    if (sIdx === 1) {
+      for (var r0 = 0; r0 < MAP_ROWS; r0++) grid[r0][0] = '1';
+    }
+
+    var curC = startC + (sIdx === 1 ? 8 : 5);
+    var safeEndC = startC + 29;
+
+    while (curC < safeEndC - 3) {
+      var obstacleType = 'lava';
+
+      if (stageId === 1) {
+        // STAGE 1 (0m - 1,000m): 100% LAVA PITS ONLY
+        obstacleType = 'lava';
+      } else if (stageId === 2) {
+        // STAGE 2 (1,000m - 2,000m): 100% FLOOR SPIKES ONLY
+        obstacleType = 'spike';
+      } else if (stageId === 3) {
+        // STAGE 3 (2,000m - 3,000m): LADDERS & PLATFORMS (+ occasional Lava Pit)
+        obstacleType = (Math.random() < 0.7) ? 'ladder' : 'lava';
+      } else if (stageId === 4) {
+        // STAGE 4 (3,000m - 4,000m): GHOSTS ONLY ON FLAT RUNWAYS
+        obstacleType = 'ghost_flat';
+      } else {
+        // STAGE 5 (4,000m+): FULL COMBINED MASTERY
+        var roll = Math.random();
+        if (roll < 0.30) obstacleType = 'lava';
+        else if (roll < 0.58) obstacleType = 'spike';
+        else if (roll < 0.80) obstacleType = 'ladder';
+        else obstacleType = 'ghost_flat';
+      }
+
+      if (obstacleType === 'lava') {
+        var pitWidth = randInt(1, 2);
+        if (curC + pitWidth < safeEndC) {
+          for (var p = 0; p < pitWidth; p++) {
+            grid[13][curC + p] = '.';
+            grid[14][curC + p] = 'L';
+          }
+          coins.push({ x: (curC + pitWidth * 0.5) * TILE, y: 10 * TILE, collected: false, kind: 'gem' });
+          curC += pitWidth + randInt(5, 7); // Generous runway so each jump is cleanly isolated
+        } else {
+          curC += 4;
+        }
+      } else if (obstacleType === 'spike') {
+        grid[12][curC] = '4';
+        coins.push({ x: curC * TILE + 6, y: 9 * TILE + 10, collected: false, kind: 'gem' });
+        curC += 1 + randInt(5, 7);
+      } else if (obstacleType === 'ladder') {
+        var platLen = randInt(5, 7);
+        if (curC + platLen < safeEndC) {
+          for (var rl = 9; rl <= 12; rl++) grid[rl][curC] = '3';
+          for (var cl = curC + 1; cl <= curC + platLen; cl++) grid[9][cl] = '2';
+
+          chests.push({ x: (curC + 2) * TILE, y: 8 * TILE, opened: false, item: 'crimson' });
+          coins.push({ x: (curC + 4) * TILE + 6, y: 8 * TILE, collected: false, kind: 'gem' });
+          curC += platLen + randInt(4, 6);
+        } else {
+          curC += 4;
+        }
+      } else if (obstacleType === 'ghost_flat') {
+        var patrolLen = randInt(5, 7);
+        if (curC + patrolLen < safeEndC) {
+          spawnRandomGhost(curC, curC + patrolLen, 11);
+          coins.push({ x: (curC + 2) * TILE + 6, y: 12 * TILE, collected: false, kind: 'coin' });
+          curC += patrolLen + randInt(4, 6);
+        } else {
+          curC += 4;
+        }
+      }
+    }
+
+    grid[11][startC + 32] = '5'; grid[12][startC + 32] = '5';
+    portals.push({ c: startC + 32, sector: sIdx, passed: false, gemTaken: false, gemX: (startC + 30) * TILE, gemY: 11 * TILE });
+
+    worldCols = endC;
+    pruneEntities();
+  }
+
+  // ===========================================================================
+  // 5. PPO-CLIP + GAE(lambda) ROLLOUT BUFFER & WIN-STAY SATISFICING LEARNER
+  // ===========================================================================
+  function startNewAttempt() {
+    isConcluding = false;
+    initWorld();
+
+    player = {
+      x: 3 * TILE, y: 12 * TILE, w: 18, h: 24, vx: 0, vy: 0,
+      speed: 3.6, jumpPower: 8.5, onGround: false, onLadder: false,
+      coyote: 0, jumpBuf: 0, facing: 1, aimAngle: 0,
+      maxHp: 5, hp: 5, maxMana: 100, mana: 100, invuln: 0, castCd: 0,
+      weapon: 'apprentice', sector: 1
+    };
+
+    ep = {
+      ghostKills: 0, ghostReward: 0, sectorsCleared: 0, sectorReward: 0,
+      hazardsCleared: 0, evadeReward: 0, lastClearedCol: -1,
+      coinsCollected: 0, coinReward: 0, heartsKeptBonus: 0, heartsLost: 0, damagePenalty: 0,
+      startX: player.x, maxPxReached: player.x, distReward: 0, bulletsFired: 0, bulletPenalty: 0,
+      loopPenalty: 0, framesAlive: 0, stagnantFrames: 0, deathPenalty: 0,
+      aimAngle: 0, currentAction: 1,
+      macroAction: null, macroTimer: 0,
+      lastDecisionFeatures: null,
+      lastDecisionKey: null,
+      lastDecisionAction: null,
+      lastDecisionProb: 0.167,
+      lastDecisionX: player.x,
+      stepRewardAccumulator: 0,
+      rolloutBuffer: [],
+      lidarRays: [],
+      peakNetScoreThisRun: 0
+    };
+  }
+
+  function getDistanceMeters() {
+    if (!player || !ep) return 0;
+    return Math.max(0, Number(((ep.maxPxReached - ep.startX) / 12).toFixed(1)));
+  }
+
+  function getNetReward() {
+    if (!player || !ep) return 0;
+    return Math.round(
+      ep.distReward + ep.sectorReward + ep.ghostReward + ep.evadeReward + ep.coinReward +
+      ep.heartsKeptBonus + (player.hp * 1000) - ep.bulletPenalty - ep.damagePenalty - ep.loopPenalty - ep.deathPenalty
+    );
+  }
+
+  function ensureLatentCluster(zKey) {
+    if (!rlBrain.latentActorLogits[zKey] || rlBrain.latentActorLogits[zKey].length !== NUM_ACTIONS) {
+      rlBrain.latentActorLogits[zKey] = [0, 0, 0, 0, 0, 0];
+    }
+    if (typeof rlBrain.latentCriticV[zKey] !== 'number' || !isFinite(rlBrain.latentCriticV[zKey])) {
+      rlBrain.latentCriticV[zKey] = 0;
+    }
+    if (!rlBrain.latentActionAdv[zKey] || rlBrain.latentActionAdv[zKey].length !== NUM_ACTIONS) {
+      rlBrain.latentActionAdv[zKey] = [0, 0, 0, 0, 0, 0];
+    }
+    if (!rlBrain.latentCounts[zKey] || rlBrain.latentCounts[zKey].length !== NUM_ACTIONS) {
+      rlBrain.latentCounts[zKey] = [0, 0, 0, 0, 0, 0];
+    }
+  }
+
+  function evaluateCriticV(features, zKey) {
+    ensureLatentCluster(zKey);
+    var v = safeNum(rlBrain.latentCriticV[zKey], 0);
+    for (var f = 0; f < NUM_FEATURES; f++) {
+      v += safeNum(rlBrain.criticWeights[f], 0) * safeNum(features[f], 0);
+    }
+    return v;
+  }
+
+  function evaluateActorDistribution(features, zKey) {
+    ensureLatentCluster(zKey);
+    var logits = [0, 0, 0, 0, 0, 0];
+    var maxL = -Infinity;
+    for (var a = 0; a < NUM_ACTIONS; a++) {
+      // Latent cluster memory has 2.5x priority over shared linear weights so new stage obstacles never corrupt earlier stages!
+      var sum = safeNum(rlBrain.latentActorLogits[zKey][a], 0) * 2.5 + safeNum(rlBrain.latentActionAdv[zKey][a], 0) * 1.8;
+      for (var f = 0; f < NUM_FEATURES; f++) {
+        sum += safeNum(rlBrain.actorWeights[a][f], 0) * safeNum(features[f], 0) * 0.35;
+      }
+      logits[a] = sum;
+      if (sum > maxL) maxL = sum;
+    }
+
+    var exps = [0, 0, 0, 0, 0, 0];
+    var sumExp = 0;
+    for (var b = 0; b < NUM_ACTIONS; b++) {
+      var e = Math.exp(Math.max(-20, Math.min(20, logits[b] - maxL)));
+      exps[b] = e;
+      sumExp += e;
+    }
+    var probs = [0, 0, 0, 0, 0, 0];
+    for (var c = 0; c < NUM_ACTIONS; c++) {
+      probs[c] = exps[c] / (sumExp || 1);
+    }
+    return { probs: probs, logits: logits };
+  }
+
+  function recordAndStepUpdate(features, zKey, actionIdx, oldProb, rawReward, nextFeatures, nextZKey) {
+    if (!features || !zKey || actionIdx === null || actionIdx === undefined) return;
+    ensureLatentCluster(zKey);
+
+    var rScaled = Math.max(-28, Math.min(28, safeNum(rawReward, 0) / 280));
+    var vNow = evaluateCriticV(features, zKey);
+    var vNext = (nextFeatures && nextZKey) ? evaluateCriticV(nextFeatures, nextZKey) : 0;
+
+    var gamma = 0.72;
+    var delta = rScaled + (gamma * vNext) - vNow;
+
+    var advNow = safeNum(rlBrain.latentActionAdv[zKey][actionIdx], 0);
+    rlBrain.latentActionAdv[zKey][actionIdx] = Math.max(-65, Math.min(65, advNow + 0.28 * (rScaled - advNow)));
+
+    rlBrain.latentCriticV[zKey] = Math.max(-60, Math.min(60, safeNum(rlBrain.latentCriticV[zKey], 0) + 0.14 * delta));
+    rlBrain.latentActorLogits[zKey][actionIdx] = Math.max(-60, Math.min(60, safeNum(rlBrain.latentActorLogits[zKey][actionIdx], 0) + 0.22 * delta));
+
+    for (var f = 0; f < NUM_FEATURES; f++) {
+      if (features[f] !== 0) {
+        rlBrain.criticWeights[f] = Math.max(-45, Math.min(45, safeNum(rlBrain.criticWeights[f], 0) + 0.04 * delta * features[f]));
+        rlBrain.actorWeights[actionIdx][f] = Math.max(-55, Math.min(55, safeNum(rlBrain.actorWeights[actionIdx][f], 0) + 0.06 * delta * features[f]));
+      }
+    }
+
+    ep.rolloutBuffer.push({
+      features: features,
+      zKey: zKey,
+      action: actionIdx,
+      oldProb: Math.max(0.01, safeNum(oldProb, 0.167)),
+      reward: rScaled,
+      vPred: vNow
+    });
+    if (ep.rolloutBuffer.length > 220) ep.rolloutBuffer.shift();
+  }
+
+  function runPPOClipEpoch() {
+    var buf = ep.rolloutBuffer;
+    var n = buf.length;
+    if (n === 0) return;
+
+    var gamma = 0.75;
+    var lam = 0.65;
+    var clipEps = 0.20;
+    var gae = 0;
+
+    for (var i = n - 1; i >= 0; i--) {
+      var step = buf[i];
+      var nextV = (i + 1 < n) ? buf[i + 1].vPred : 0;
+      var contextChanged = (i + 1 < n && buf[i + 1].zKey !== step.zKey);
+      var effLam = contextChanged ? 0.0 : lam;
+
+      var delta = step.reward + (gamma * nextV) - step.vPred;
+      gae = delta + (gamma * effLam * gae);
+      var adv = Math.max(-25, Math.min(25, gae));
+
+      var curDist = evaluateActorDistribution(step.features, step.zKey);
+      var newProb = Math.max(0.01, curDist.probs[step.action]);
+      var ratio = newProb / step.oldProb;
+      var clippedRatio = Math.max(1.0 - clipEps, Math.min(1.0 + clipEps, ratio));
+
+      var effStep = (ratio * adv <= clippedRatio * adv) ? (ratio * adv) : (clippedRatio * adv);
+      var ppoLr = 0.08;
+
+      rlBrain.latentActorLogits[step.zKey][step.action] = Math.max(
+        -60,
+        Math.min(60, safeNum(rlBrain.latentActorLogits[step.zKey][step.action], 0) + ppoLr * effStep)
+      );
+    }
+  }
+
+  function concludeAttempt(cause, died) {
+    if (isConcluding) return;
+    isConcluding = true;
+
+    var distM = getDistanceMeters();
+
+    if (died) {
+      ep.deathPenalty = REWARD_CFG.deathPenalty;
+      if (ep.lastDecisionFeatures !== null && ep.lastDecisionKey !== null && ep.lastDecisionAction !== null) {
+        recordAndStepUpdate(
+          ep.lastDecisionFeatures,
+          ep.lastDecisionKey,
+          ep.lastDecisionAction,
+          ep.lastDecisionProb,
+          -REWARD_CFG.deathPenalty * 0.55,
+          null,
+          null
+        );
+      }
+    }
+
+    runPPOClipEpoch();
+
+    var finalScore = getNetReward();
+
+    if (distM >= rlBrain.maxDistMeters || rlBrain.bestReward === null || ep.peakNetScoreThisRun >= rlBrain.bestReward) {
+      rlBrain.eliteActorWeights = cloneMatrix(rlBrain.actorWeights);
+    } else {
+      for (var a = 0; a < NUM_ACTIONS; a++) {
+        for (var f = 0; f < NUM_FEATURES; f++) {
+          rlBrain.actorWeights[a][f] = safeNum(rlBrain.actorWeights[a][f], 0) * 0.85 + safeNum(rlBrain.eliteActorWeights[a][f], 0) * 0.15;
+        }
+      }
+    }
+
+    if (distM > rlBrain.maxDistMeters) rlBrain.maxDistMeters = distM;
+    if (rlBrain.bestReward === null || ep.peakNetScoreThisRun > rlBrain.bestReward) {
+      rlBrain.bestReward = ep.peakNetScoreThisRun;
+    }
+    if (player.sector > rlBrain.maxSector) rlBrain.maxSector = player.sector;
+
+    rlBrain.fullHistory.push({
+      attempt: rlBrain.attempt, dist: distM, recordDist: rlBrain.maxDistMeters,
+      reward: finalScore, peakScore: ep.peakNetScoreThisRun, sectors: ep.sectorsCleared,
+      ghosts: ep.ghostKills, evades: ep.hazardsCleared, coins: ep.coinsCollected,
+      bullets: ep.bulletsFired, hpLost: ep.heartsLost, frames: ep.framesAlive, cause: cause || 'Ended'
+    });
+
+    rlBrain.attempt++;
+    if (rlBrain.attempt % 10 === 0 || targetSimSpeed <= 100) saveRLBrain();
+    startNewAttempt();
+  }
+
+  // ===========================================================================
+  // 6. EXTEROCEPTIVE HEIGHTMAP SCANNER & WIN-STAY SATISFICING CONTROLLER
+  // ===========================================================================
+  function getTile(c, r) {
+    if (r < 0 || r >= MAP_ROWS || c < 0) return '1';
+    if (c >= worldCols || !grid[r]) return '.';
+    return grid[r][c] || '.';
+  }
+
+  function isSolidWall(c, r) { return (getTile(c, r) === '1' || getTile(c, r) === '2'); }
+  function isTopOfLadder(c, r) { return getTile(c, r) === '3' && getTile(c, r - 1) !== '3'; }
+  function hasLineOfSight(x1, y1, x2, y2) {
+    var steps = Math.ceil(Math.hypot(x2 - x1, y2 - y1) / 14);
+    for (var i = 1; i < steps; i++) {
+      var tx = x1 + ((x2 - x1) * i) / steps; var ty = y1 + ((y2 - y1) * i) / steps;
+      if (isSolidWall(Math.floor(tx / TILE), Math.floor(ty / TILE))) return false;
+    }
+    return true;
+  }
+
+  function extractMultiModalPerception() {
+    var pCx = player.x + player.w / 2;
+    var pCy = player.y + player.h / 2;
+    var pCol = Math.floor(pCx / TILE);
+    var pRow = Math.floor((player.y + player.h - 2) / TILE);
+
+    var curMeters = Math.max(0, (player.x - ep.startX) / 12);
+    rlBrain.activeStageText = getCurriculumStageForMeters(curMeters).label;
+
+    var floorNext1 = getTile(pCol + 1, pRow + 1);
+    var floorNext2 = getTile(pCol + 2, pRow + 1);
+    var wallNext1 = getTile(pCol + 1, pRow);
+    var wallNext2 = getTile(pCol + 2, pRow);
+
+    var pitTakeoffNow = (floorNext1 === '.' || floorNext1 === 'L') ? 1.0 : 0.0;
+    var pitApproach = (!pitTakeoffNow && (floorNext2 === '.' || floorNext2 === 'L')) ? 1.0 : 0.0;
+    var spikeTakeoffNow = (wallNext1 === '4' || (wallNext2 === '4' && (player.x % TILE) > 12)) ? 1.0 : 0.0;
+    var ladderHere = (getTile(pCol, pRow) === '3' || wallNext1 === '3' || isSolidWall(pCol + 1, pRow)) ? 1.0 : 0.0;
+
+    var nearestGhost = null; var nearestGDist = 999;
+    for (var i = 0; i < ghosts.length; i++) {
+      var gh = ghosts[i]; if (gh.hp <= 0) continue;
+      if (gh.x + 18 < player.x) continue;
+      var gd = Math.hypot((gh.x + 14) - pCx, (gh.y + 14) - pCy);
+      if (gd < 195 && gd < nearestGDist && hasLineOfSight(pCx, pCy, gh.x + 14, gh.y + 14)) {
+        nearestGDist = gd; nearestGhost = gh; ep.aimAngle = Math.atan2((gh.y + 12) - pCy, (gh.x + 14) - pCx);
+      }
+    }
+    if (!nearestGhost) ep.aimAngle = 0;
+
+    ep.lidarRays = [
+      { x2: (pCol + 1.5) * TILE, y2: (pRow + 1.2) * TILE, hazard: pitTakeoffNow > 0 || spikeTakeoffNow > 0 },
+      { x2: (pCol + 2.5) * TILE, y2: (pRow + 1.2) * TILE, hazard: pitApproach > 0 }
+    ];
+    if (nearestGhost) {
+      ep.lidarRays.push({ x2: nearestGhost.x + 14, y2: nearestGhost.y + 14, hazard: true });
+    }
+
+    var visitsHere = breadcrumbs[pCol + ',' + pRow] || 0;
+    var isStuckHere = visitsHere >= 3 ? 1.0 : 0.0;
+
+    var ghostClose = (nearestGhost && nearestGDist < 78) ? 1.0 : 0.0;
+    var ghostMed = (nearestGhost && nearestGDist >= 78) ? 1.0 : 0.0;
+
+    var isFlatClear = (!pitTakeoffNow && !pitApproach && !spikeTakeoffNow && !ladderHere && !ghostClose && !ghostMed && !isStuckHere) ? 1.0 : 0.0;
+
+    var contextLabel = 'FLAT RUNWAY';
+    if (pitTakeoffNow) contextLabel = 'GAP TAKEOFF SCAN';
+    else if (spikeTakeoffNow) contextLabel = 'SPIKE LIDAR SCAN';
+    else if (ghostClose) contextLabel = 'THREAT PROXIMITY';
+    else if (ghostMed) contextLabel = 'THREAT IN CONE';
+    else if (pitApproach) contextLabel = 'GAP FAR SCAN';
+    else if (ladderHere) contextLabel = 'STEP / LADDER';
+    else if (isStuckHere) contextLabel = 'STALL RECOVERY';
+
+    var fArray = [
+      isFlatClear,      // f0
+      pitTakeoffNow,    // f1
+      pitApproach,      // f2
+      spikeTakeoffNow,  // f3
+      ladderHere,       // f4
+      ghostMed,         // f5
+      ghostClose,       // f6
+      isStuckHere       // f7
+    ];
+
+    return {
+      fArray: fArray,
+      zKey: fArray.join(''),
+      contextLabel: contextLabel,
+      pCol: pCol,
+      pRow: pRow,
+      visitsHere: visitsHere
+    };
+  }
+
+  function stepRoboticsAgent() {
+    var ctxData = extractMultiModalPerception();
+    var features = ctxData.fArray;
+    var zKey = ctxData.zKey;
+    var pCol = ctxData.pCol;
+    var pRow = ctxData.pRow;
+    var visitsHere = ctxData.visitsHere;
+    rlBrain.activeContextText = ctxData.contextLabel;
+
+    var bKey = pCol + ',' + pRow;
+    if (ep.framesAlive % 5 === 0) breadcrumbs[bKey] = (breadcrumbs[bKey] || 0) + 1;
+
+    // 1. HUMAN DEMONSTRATION MODE
+    if (!aiEnabled) {
+      rlBrain.activeContextText = 'HUMAN TELEOP';
+      var hLeft = Boolean(keys['KeyA'] || keys['ArrowLeft']);
+      var hRight = Boolean(keys['KeyD'] || keys['ArrowRight']);
+      var hUp = Boolean(keys['KeyW'] || keys['ArrowUp']);
+      var hDown = Boolean(keys['KeyS'] || keys['ArrowDown']);
+      var hJump = Boolean(keys['Space'] || (hUp && !player.onLadder));
+      var hInteract = Boolean(keys['KeyE']);
+      var hShoot = Boolean(mouse.down || keys['KeyJ'] || keys['KeyZ']);
+
+      var humanAct = null;
+      if (hRight && hJump) humanAct = 3;
+      else if (hUp && hRight) humanAct = 4;
+      else if (hJump) humanAct = 2;
+      else if (hShoot) humanAct = 5;
+      else if (hRight) humanAct = 1;
+      else if (hLeft) humanAct = 0;
+
+      if (humanAct !== null && (player.onGround || player.onLadder)) {
+        ensureLatentCluster(zKey);
+        rlBrain.latentCounts[zKey][humanAct] += 3;
+        recordAndStepUpdate(features, zKey, humanAct, 0.5, +950, features, zKey);
+      }
+
+      return { left: hLeft, right: hRight, up: hUp, down: hDown, jump: hJump, interact: hInteract, shoot: hShoot };
+    }
+
+    // 2. AUTONOMOUS ROBOTICS CONTROLLER (WIN-STAY, LOSE-SHIFT SATISFICING + PPO-GAE)
+    if (player.onGround || player.onLadder) {
+      if (ep.lastDecisionFeatures !== null && ep.lastDecisionKey !== null && ep.lastDecisionAction !== null) {
+        var dx = player.x - ep.lastDecisionX;
+        var stallPenalty = (Math.abs(dx) < 0.4 && visitsHere >= 3) ? -(visitsHere * 240) : 0;
+        if (stallPenalty < 0) ep.loopPenalty += Math.abs(stallPenalty);
+
+        var velTrackingReward = (dx * 100) + ep.stepRewardAccumulator + stallPenalty;
+        recordAndStepUpdate(
+          ep.lastDecisionFeatures,
+          ep.lastDecisionKey,
+          ep.lastDecisionAction,
+          ep.lastDecisionProb,
+          velTrackingReward,
+          features,
+          zKey
+        );
+      }
+
+      ep.stepRewardAccumulator = 0;
+      ep.lastDecisionX = player.x;
+
+      ensureLatentCluster(zKey);
+      var distObj = evaluateActorDistribution(features, zKey);
+      rlBrain.lastProbs = distObj.probs;
+      rlBrain.lastAdv = rlBrain.latentActionAdv[zKey];
+      rlBrain.lastCriticVal = evaluateCriticV(features, zKey);
+
+      var counts = rlBrain.latentCounts[zKey];
+      var advArr = rlBrain.latentActionAdv[zKey];
+      var chosenAct = 1;
+      var immediateDanger = (features[1] === 1 || features[3] === 1 || features[6] === 1);
+
+      if (ep.macroTimer > 0 && !immediateDanger) {
+        ep.macroTimer--;
+        chosenAct = ep.macroAction;
+      } else {
+        ep.macroTimer = 0;
+
+        // WIN-STAY, LOSE-SHIFT SATISFICING RULE:
+        // Check if ANY action in this sensory state has already proven to be a clear winner (Adv > +1.5)!
+        // If so, DO NOT force suicidal probing of untried buttons—lock onto the winning action 100%!
+        var hasProvenWinner = false;
+        var bestProvenAct = 0;
+        var bestProvenAdv = -Infinity;
+        for (var w = 0; w < NUM_ACTIONS; w++) {
+          if (counts[w] > 0 && advArr[w] > 1.5 && advArr[w] > bestProvenAdv) {
+            hasProvenWinner = true;
+            bestProvenAdv = advArr[w];
+            bestProvenAct = w;
+          }
+        }
+
+        if (hasProvenWinner && visitsHere < 3) {
+          chosenAct = bestProvenAct;
+        } else {
+          // Otherwise, probe untried actions that haven't failed yet!
+          var bestScore = -Infinity;
+          for (var a = 0; a < NUM_ACTIONS; a++) {
+            var nA = counts[a];
+            var probeBonus = 0;
+            if (nA === 0) {
+              probeBonus = 12.0 + Math.random() * 0.5;
+            } else if (visitsHere >= 3) {
+              probeBonus = (a === ep.currentAction) ? -35.0 : (10.0 / Math.sqrt(nA));
+            }
+
+            var combinedScore = distObj.logits[a] + probeBonus;
+            if (combinedScore > bestScore) {
+              bestScore = combinedScore;
+              chosenAct = a;
+            }
+          }
+        }
+
+        counts[chosenAct]++;
+
+        if (visitsHere >= 3 && chosenAct !== ep.currentAction) {
+          ep.macroAction = chosenAct;
+          ep.macroTimer = 10;
+        }
+      }
+
+      ep.lastDecisionFeatures = features;
+      ep.lastDecisionKey = zKey;
+      ep.lastDecisionAction = chosenAct;
+      ep.lastDecisionProb = distObj.probs[chosenAct];
+      ep.currentAction = chosenAct;
+    } else {
+      if (ep.currentAction === 2 || ep.currentAction === 3) ep.currentAction = 3;
+    }
+
+    var act = { left: false, right: false, up: false, down: false, jump: false, interact: false, shoot: false };
+    switch (ep.currentAction) {
+      case 0: act.left = true; break;
+      case 1: act.right = true; break;
+      case 2: act.jump = true; break;
+      case 3: act.right = true; act.jump = true; break;
+      case 4: act.up = true; act.right = true; act.interact = true; break;
+      case 5: act.right = true; act.shoot = true; break;
+    }
+
+    return act;
+  }
+
+  // ===========================================================================
+  // 7. PHYSICS LOOP
+  // ===========================================================================
+  function fireSpell(targetX, targetY) {
+    if (player.castCd > 0 || player.mana < 5) return;
+    player.mana -= 5;
+    player.castCd = 14;
+
+    ep.bulletsFired++;
+    ep.bulletPenalty += REWARD_CFG.bulletCost;
+    ep.stepRewardAccumulator -= REWARD_CFG.bulletCost;
+    playTone(540, 'triangle', 0.1, 180, 0.05);
+
+    var ox = player.x + player.w / 2;
+    var oy = player.y + player.h / 2 - 2;
+    var ang = Math.atan2(targetY - oy, targetX - ox);
+    player.aimAngle = ang;
+    player.facing = Math.cos(ang) >= 0 ? 1 : -1;
+
+    var spd = player.weapon === 'crimson' ? 9.2 : 8.2;
+    spells.push({ x: ox + Math.cos(ang) * 10, y: oy + Math.sin(ang) * 10, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd, dmg: player.weapon === 'crimson' ? 2 : 1, type: player.weapon === 'crimson' ? 'flame' : 'arcane', life: 50 });
+  }
+
+  function applyHeavyHeartLoss(heartsLostCount) {
+    player.hp -= heartsLostCount;
+    ep.heartsLost += heartsLostCount;
+    var pen = heartsLostCount * REWARD_CFG.heartLostPenalty;
+    ep.damagePenalty += pen;
+    ep.stepRewardAccumulator -= pen;
+    playTone(120, 'sawtooth', 0.18, 40, 0.12);
+  }
+
+  function stepPhysics() {
+    if (isConcluding) return;
+    ep.framesAlive++;
+    actualStepsThisSec++;
+
+    if (player.x + 1400 > worldCols * TILE) appendCurriculumSector();
+    if (player.mana < player.maxMana) player.mana = Math.min(player.maxMana, player.mana + 0.35);
+    if (player.invuln > 0) player.invuln--;
+    if (player.castCd > 0) player.castCd--;
+
+    var prevX = player.x;
+    var aiAct = stepRoboticsAgent();
+    var inLeft = aiAct.left, inRight = aiAct.right, inUp = aiAct.up, inDown = aiAct.down, inJump = aiAct.jump, inInteract = aiAct.interact;
+
+    if (aiAct.shoot) {
+      var pCx = player.x + player.w / 2, pCy = player.y + player.h / 2;
+      var aimX = aiEnabled ? (pCx + Math.cos(ep.aimAngle) * 120) : mouse.worldX;
+      var aimY = aiEnabled ? (pCy + Math.sin(ep.aimAngle) * 120) : mouse.worldY;
+      fireSpell(aimX, aimY);
+    }
+
+    var centerC = Math.floor((player.x + player.w / 2) / TILE);
+    var bodyR = Math.floor((player.y + player.h / 2) / TILE);
+    var feetR = Math.floor((player.y + player.h - 1) / TILE);
+    var belowFeetR = Math.floor((player.y + player.h + 4) / TILE);
+
+    var inLad = (getTile(centerC, bodyR) === '3' || getTile(centerC, feetR) === '3');
+    var onLadTop = isTopOfLadder(centerC, belowFeetR);
+
+    if (inLad && (inUp || inDown)) {
+      player.onLadder = true; player.x += ((centerC * TILE + (TILE - player.w) / 2) - player.x) * 0.25;
+    } else if (onLadTop && inDown) {
+      player.onLadder = true; player.onGround = false; player.y += 5;
+    }
+    if (!inLad && !onLadTop) player.onLadder = false;
+
+    var mx = 0;
+    if (inLeft) { mx -= 1; player.facing = -1; }
+    if (inRight) { mx += 1; player.facing = 1; }
+    player.vx = mx * player.speed;
+
+    if (player.onGround) player.coyote = 8;
+    else if (player.coyote > 0) player.coyote--;
+
+    if (inJump && !player.onLadder) player.jumpBuf = 6;
+    else if (player.jumpBuf > 0) player.jumpBuf--;
+
+    if (player.onLadder) {
+      player.vy = 0;
+      if (inUp) player.vy = -player.speed * 0.92;
+      if (inDown) player.vy = player.speed * 0.92;
+      var topCheckR = Math.floor((player.y + player.h - 2) / TILE);
+      if (inUp && getTile(centerC, topCheckR) !== '3' && isTopOfLadder(centerC, topCheckR + 1)) {
+        player.y = (topCheckR + 1) * TILE - player.h; player.vy = 0; player.onLadder = false; player.onGround = true;
+      }
+    } else {
+      player.vy += 0.36;
+      if (player.vy > 8.8) player.vy = 8.8;
+      if (player.jumpBuf > 0 && player.coyote > 0) {
+        player.vy = -player.jumpPower; player.onGround = false; player.coyote = 0; player.jumpBuf = 0;
+      }
+    }
+
+    player.x += player.vx;
+    var lC = Math.floor(player.x / TILE);
+    var rC = Math.floor((player.x + player.w - 0.01) / TILE);
+    var tR = Math.floor((player.y + 2) / TILE);
+    var bR = Math.floor((player.y + player.h - 2) / TILE);
+
+    if (player.vx > 0) {
+      if (isSolidWall(rC, tR) || isSolidWall(rC, bR)) { player.x = rC * TILE - player.w - 0.05; player.vx = 0; }
+    } else if (player.vx < 0) {
+      if (isSolidWall(lC, tR) || isSolidWall(lC, bR)) { player.x = (lC + 1) * TILE + 0.05; player.vx = 0; }
+    }
+
+    var prevBottom = player.y + player.h;
+    player.y += player.vy;
+    lC = Math.floor((player.x + 2) / TILE); rC = Math.floor((player.x + player.w - 2) / TILE);
+    tR = Math.floor(player.y / TILE); bR = Math.floor((player.y + player.h) / TILE);
+
+    player.onGround = false;
+    if (player.vy >= 0 && !player.onLadder) {
+      var solidFl = isSolidWall(lC, bR) || isSolidWall(rC, bR);
+      var ladFl = !inDown && (isTopOfLadder(lC, bR) || isTopOfLadder(rC, bR)) && (prevBottom <= bR * TILE + 6);
+      if (solidFl || ladFl) {
+        player.y = bR * TILE - player.h; player.vy = 0; player.onGround = true;
+
+        var tB1 = getTile(centerC - 1, bR - 1), tBU1 = getTile(centerC - 1, bR);
+        var tB2 = getTile(centerC - 2, bR - 1), tBU2 = getTile(centerC - 2, bR);
+        var clearedHazard = (tB1 === '4' || tBU1 === 'L' || tBU1 === '.' || tB2 === '4' || tBU2 === 'L' || tBU2 === '.');
+        if (clearedHazard && centerC > ep.lastClearedCol) {
+          ep.lastClearedCol = centerC; ep.hazardsCleared++; ep.evadeReward += REWARD_CFG.evadeReward;
+          ep.stepRewardAccumulator += REWARD_CFG.evadeReward;
+          ep.stagnantFrames = 0;
+          playTone(880, 'triangle', 0.12, 1320, 0.06);
+        }
+      }
+    } else if (player.vy < 0 && !player.onLadder) {
+      if (isSolidWall(lC, tR) || isSolidWall(rC, tR)) { player.y = (tR + 1) * TILE; player.vy = 0; }
+    }
+
+    if (player.x > ep.maxPxReached) {
+      var deltaMeters = (player.x - ep.maxPxReached) / 12;
+      ep.maxPxReached = player.x;
+      var fwdGain = deltaMeters * REWARD_CFG.xDistPerMeter * (1 + getDistanceMeters() * 0.02);
+      ep.distReward += fwdGain; ep.stepRewardAccumulator += fwdGain;
+      ep.stagnantFrames = 0;
+      if (getDistanceMeters() > rlBrain.maxDistMeters) rlBrain.maxDistMeters = getDistanceMeters();
+    } else if (player.x < prevX - 0.1) {
+      var backMeters = (prevX - player.x) / 12;
+      var backCost = backMeters * REWARD_CFG.backPenaltyPerMeter;
+      ep.distReward -= backCost;
+      ep.stepRewardAccumulator -= backCost * 1.5;
+    } else if (aiEnabled) {
+      ep.stagnantFrames++;
+      if (ep.stagnantFrames > 420) {
+        concludeAttempt("Stall / Loop", true);
+        return;
+      }
+    }
+
+    var liveScoreBeforeDeath = getNetReward();
+    if (liveScoreBeforeDeath > ep.peakNetScoreThisRun) {
+      ep.peakNetScoreThisRun = liveScoreBeforeDeath;
+    }
+    if (rlBrain.bestReward === null || liveScoreBeforeDeath > rlBrain.bestReward) {
+      rlBrain.bestReward = liveScoreBeforeDeath;
+    }
+
+    var fC1 = Math.floor((player.x + 4) / TILE), fC2 = Math.floor((player.x + player.w - 4) / TILE), fR = Math.floor((player.y + player.h - 2) / TILE);
+    var hz1 = getTile(fC1, fR), hz2 = getTile(fC2, fR);
+    if (hz1 === '4' || hz2 === '4') {
+      if (player.invuln === 0) {
+        applyHeavyHeartLoss(1);
+        player.invuln = 35; player.vy = -5.8;
+        if (player.hp <= 0) { concludeAttempt("Spikes", true); return; }
+      }
+    } else if (hz1 === 'L' || hz2 === 'L') {
+      if (player.invuln === 0) {
+        applyHeavyHeartLoss(2);
+        player.invuln = 35; player.vy = -6.8;
+        if (player.hp <= 0) { concludeAttempt("Lava", true); return; }
+      }
+    }
+
+    for (var i = spells.length - 1; i >= 0; i--) {
+      var s = spells[i]; s.x += s.vx; s.y += s.vy; s.life--;
+      var sc = Math.floor(s.x / TILE), sr = Math.floor(s.y / TILE);
+      if (isSolidWall(sc, sr)) { spells.splice(i, 1); continue; }
+      for (var g = 0; g < ghosts.length; g++) {
+        var gh = ghosts[g];
+        if (gh.hp > 0 && Math.hypot(s.x - (gh.x + 14), s.y - (gh.y + 14)) < 19) {
+          gh.hp -= s.dmg;
+          ep.bulletPenalty = Math.max(0, ep.bulletPenalty - REWARD_CFG.bulletCost);
+          ep.stepRewardAccumulator += REWARD_CFG.bulletCost * 1.5;
+          ep.stagnantFrames = 0;
+          s.life = 0;
+          if (gh.hp <= 0) {
+            ep.ghostKills++;
+            ep.ghostReward += REWARD_CFG.ghostKill;
+            ep.stepRewardAccumulator += REWARD_CFG.ghostKill;
+            playTone(680, 'sine', 0.12, 1100, 0.06);
+          }
+          break;
+        }
+      }
+      if (s.life <= 0) spells.splice(i, 1);
+    }
+
+    for (var gi = 0; gi < ghosts.length; gi++) {
+      var ghObj = ghosts[gi]; if (ghObj.hp <= 0) continue;
+      ghObj.bob += 0.06;
+      var dist = Math.hypot((player.x + 9) - (ghObj.x + 14), (player.y + 12) - (ghObj.y + 14));
+      if (dist < 135) {
+        var ang = Math.atan2((player.y + 12) - (ghObj.y + 14), (player.x + 9) - (ghObj.x + 14));
+        ghObj.x += Math.cos(ang) * 1.15; ghObj.y += Math.sin(ang) * 0.6; ghObj.dir = Math.cos(ang) >= 0 ? 1 : -1;
+      } else { ghObj.x += ghObj.vx * ghObj.dir; if (ghObj.x > ghObj.maxX) ghObj.dir = -1; if (ghObj.x < ghObj.minX) ghObj.dir = 1; }
+      if (dist < 16 && player.invuln === 0) {
+        applyHeavyHeartLoss(1);
+        player.invuln = 40;
+        player.vy = -4.8;
+        if (player.hp <= 0) { concludeAttempt("Ghost", true); return; }
+      }
+    }
+
+    if (inInteract) {
+      keys['KeyE'] = false;
+      for (var ci = 0; ci < chests.length; ci++) {
+        var ch = chests[ci];
+        if (!ch.opened && Math.hypot((player.x + 9) - (ch.x + 14), (player.y + 12) - (ch.y + 14)) < 32) {
+          ch.opened = true; ep.coinReward += REWARD_CFG.coinReward; ep.stepRewardAccumulator += REWARD_CFG.coinReward;
+          ep.stagnantFrames = 0;
+          if (ch.item === 'crimson') player.weapon = 'crimson';
+        }
+      }
+    }
+
+    for (var cIdx = 0; cIdx < coins.length; cIdx++) {
+      var cObj = coins[cIdx];
+      if (!cObj.collected && Math.hypot((player.x + 9) - (cObj.x + 8), (player.y + 12) - (cObj.y + 8)) < 20) {
+        cObj.collected = true; ep.coinsCollected++; ep.coinReward += REWARD_CFG.coinReward; ep.stepRewardAccumulator += REWARD_CFG.coinReward;
+        ep.stagnantFrames = 0;
+        playTone(820, 'sine', 0.06, 1200, 0.05);
+      }
+    }
+
+    for (var pi = 0; pi < portals.length; pi++) {
+      var pt = portals[pi];
+      if (!pt.gemTaken && Math.hypot((player.x + 9) - (pt.gemX + 10), (player.y + 12) - (pt.gemY + 10)) < 24) {
+        pt.gemTaken = true; ep.coinsCollected++; ep.coinReward += REWARD_CFG.coinReward * 2; ep.stepRewardAccumulator += REWARD_CFG.coinReward * 2;
+        ep.stagnantFrames = 0;
+      }
+      if (!pt.passed && centerC >= pt.c) {
+        pt.passed = true; ep.sectorsCleared++; player.sector = pt.sector + 1;
+        if (player.sector > rlBrain.maxSector) rlBrain.maxSector = player.sector;
+        ep.sectorReward += REWARD_CFG.sectorClear;
+        ep.heartsKeptBonus += player.hp * 1000;
+        ep.stepRewardAccumulator += REWARD_CFG.sectorClear;
+        ep.stagnantFrames = 0;
+      }
+    }
+  }
+
+  // ===========================================================================
+  // 8. RENDERING & LIVE LIDAR RAY VISUALIZATION
+  // ===========================================================================
+  function renderWorld() {
+    if (!ctx || !player) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    var camX = Math.max(0, player.x + player.w / 2 - canvas.width * 0.32);
+    if (!aiEnabled) { mouse.worldX = mouse.x + camX; mouse.worldY = mouse.y; }
+
+    ctx.save(); ctx.translate(-Math.floor(camX), 0);
+    var startCol = Math.max(0, Math.floor(camX / TILE) - 1);
+    var endCol = Math.min(worldCols - 1, Math.ceil((camX + canvas.width) / TILE) + 1);
+
+    for (var r = 0; r < MAP_ROWS; r++) {
+      for (var c = startCol; c <= endCol; c++) {
+        ctx.fillStyle = (c + r) % 2 === 0 ? '#10121f' : '#141726'; ctx.fillRect(c * TILE, r * TILE, TILE, TILE);
+        var vCount = breadcrumbs[c + ',' + r] || 0;
+        if (vCount > 0) {
+          var alpha = Math.min(0.6, vCount * 0.1);
+          ctx.fillStyle = vCount > 3 ? 'rgba(255, 50, 120, ' + alpha + ')' : 'rgba(160, 80, 255, ' + alpha + ')';
+          ctx.fillRect(c * TILE + 2, r * TILE + 2, TILE - 4, TILE - 4);
+        }
+
+        var t = getTile(c, r); var dx = c * TILE, dy = r * TILE;
+        if (t === '1') {
+          ctx.fillStyle = '#282538'; ctx.fillRect(dx, dy, TILE, TILE);
+          ctx.strokeStyle = '#181524'; ctx.strokeRect(dx + 0.5, dy + 0.5, TILE - 1, TILE - 1);
+        } else if (t === '2') {
+          ctx.fillStyle = '#3e332e'; ctx.fillRect(dx, dy, TILE, TILE);
+          ctx.fillStyle = '#1d7855'; ctx.fillRect(dx, dy, TILE, 7);
+        } else if (t === '3') {
+          if (isTopOfLadder(c, r)) { ctx.fillStyle = '#266347'; ctx.fillRect(dx, dy, TILE, 5); }
+          ctx.fillStyle = '#704826'; ctx.fillRect(dx + 5, dy, 3, TILE); ctx.fillRect(dx + TILE - 8, dy, 3, TILE);
+          ctx.fillStyle = '#ad7645'; for (var y = 4; y < TILE; y += 7) ctx.fillRect(dx + 5, dy + y, TILE - 10, 3);
+        } else if (t === '4') {
+          for (var s = 0; s < 3; s++) { var sx = dx + 2 + s * 8; ctx.fillStyle = '#e63946'; ctx.beginPath(); ctx.moveTo(sx, dy + TILE); ctx.lineTo(sx + 4, dy + 10); ctx.lineTo(sx + 8, dy + TILE); ctx.fill(); }
+        } else if (t === 'L') {
+          var wave = Math.sin(Date.now() * 0.005 + c) * 2.5; ctx.fillStyle = '#e63900'; ctx.fillRect(dx, dy + 5 + wave, TILE, TILE - 5 - wave); ctx.fillStyle = '#ffcc00'; ctx.fillRect(dx, dy + 3 + wave, TILE, 4);
+        } else if (t === '5') {
+          ctx.fillStyle = '#132242'; ctx.fillRect(dx, dy, TILE, TILE);
+          ctx.strokeStyle = '#00e5ff'; ctx.lineWidth = 2; ctx.strokeRect(dx + 3, dy + 3, TILE - 6, TILE - 6);
+        }
+      }
+    }
+
+    for (var i = 0; i < chests.length; i++) {
+      var ch = chests[i]; ctx.fillStyle = ch.opened ? '#5e4327' : '#9c6631'; ctx.fillRect(ch.x + 4, ch.y + 10, 20, 18); ctx.strokeStyle = '#ffd700'; ctx.strokeRect(ch.x + 4, ch.y + 10, 20, 18);
+    }
+
+    var bob = Math.sin(Date.now() * 0.005) * 2.5;
+    for (var ci = 0; ci < coins.length; ci++) {
+      var cObj = coins[ci];
+      if (!cObj.collected) {
+        if (cObj.kind === 'coin') { ctx.fillStyle = '#ffd700'; ctx.beginPath(); ctx.arc(cObj.x + 8, cObj.y + 8 + bob, 6.5, 0, Math.PI * 2); ctx.fill(); }
+        else { ctx.fillStyle = '#2bf56b'; ctx.beginPath(); ctx.moveTo(cObj.x + 8, cObj.y + bob); ctx.lineTo(cObj.x + 15, cObj.y + 8 + bob); ctx.lineTo(cObj.x + 8, cObj.y + 16 + bob); ctx.lineTo(cObj.x + 1, cObj.y + 8 + bob); ctx.fill(); }
+      }
+    }
+
+    for (var pi = 0; pi < portals.length; pi++) {
+      var pt = portals[pi];
+      if (!pt.gemTaken) { ctx.fillStyle = '#00ffea'; ctx.beginPath(); ctx.moveTo(pt.gemX + 10, pt.gemY + bob); ctx.lineTo(pt.gemX + 20, pt.gemY + 11 + bob); ctx.lineTo(pt.gemX + 10, pt.gemY + 22 + bob); ctx.lineTo(pt.gemX, pt.gemY + 11 + bob); ctx.fill(); }
+    }
+
+    for (var gi = 0; gi < ghosts.length; gi++) {
+      var ghObj = ghosts[gi]; if (ghObj.hp <= 0) continue;
+      var gy = ghObj.y + Math.sin(ghObj.bob) * 4;
+      ctx.save(); ctx.translate(ghObj.x + 14, gy + 14); ctx.scale(ghObj.dir, 1);
+      ctx.fillStyle = 'rgba(110, 235, 255, 0.88)'; ctx.beginPath(); ctx.arc(0, -3, 11, Math.PI, 0, false); ctx.lineTo(11, 11); ctx.lineTo(5, 7); ctx.lineTo(0, 11); ctx.lineTo(-5, 7); ctx.lineTo(-11, 11); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#ffea00'; ctx.fillRect(2, -5, 3, 3); ctx.fillRect(-5, -5, 3, 3);
+      ctx.restore();
+    }
+
+    var pOx = player.x + player.w / 2;
+    var pOy = player.y + player.h / 2 - 2;
+
+    if (aiEnabled && ep.lidarRays) {
+      ctx.save();
+      ctx.lineWidth = 1.2;
+      ctx.setLineDash([3, 3]);
+      for (var lr = 0; lr < ep.lidarRays.length; lr++) {
+        var ray = ep.lidarRays[lr];
+        ctx.strokeStyle = ray.hazard ? 'rgba(255, 82, 99, 0.75)' : 'rgba(78, 237, 132, 0.45)';
+        ctx.beginPath();
+        ctx.moveTo(pOx, pOy);
+        ctx.lineTo(ray.x2, ray.y2);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    if (rlBrain.maxDistMeters > 0) {
+      var recordPx = ep.startX + rlBrain.maxDistMeters * 12;
+      ctx.save();
+      ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 2; ctx.setLineDash([6, 4]);
+      ctx.beginPath(); ctx.moveTo(recordPx, 28); ctx.lineTo(recordPx, 13 * TILE); ctx.stroke();
+      ctx.fillStyle = '#ffd700'; ctx.font = 'bold 10px "Courier New", monospace';
+      ctx.fillText('RECORD MAX-X: ' + rlBrain.maxDistMeters + 'm', recordPx - 55, 42);
+      ctx.restore();
+    }
+
+    var aimAngle = aiEnabled ? ep.aimAngle : Math.atan2(mouse.worldY - pOy, mouse.worldX - pOx);
+    ctx.save(); ctx.translate(pOx, player.y + player.h / 2); var face = Math.cos(aimAngle) >= 0 ? 1 : -1; ctx.scale(face, 1);
+    ctx.fillStyle = player.weapon === 'crimson' ? '#7a2336' : '#28427a'; ctx.fillRect(-7, -3, 14, 15);
+    ctx.fillStyle = player.weapon === 'crimson' ? '#ab324b' : '#3b5fa8'; ctx.fillRect(-6, -12, 12, 10);
+    ctx.fillStyle = '#55f2ff'; ctx.fillRect(2, -8, 2, 2); ctx.restore();
+
+    ctx.save(); ctx.translate(pOx, pOy); ctx.rotate(aimAngle); ctx.fillStyle = '#8b5a2b'; ctx.fillRect(2, -1.5, 16, 3); ctx.fillStyle = '#3df7ff'; ctx.beginPath(); ctx.arc(19, 0, 3.5, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+
+    for (var si = 0; si < spells.length; si++) {
+      var sp = spells[si]; ctx.fillStyle = sp.type === 'flame' ? '#ff6622' : '#3df7ff'; ctx.beginPath(); ctx.arc(sp.x, sp.y, 5, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+
+    ctx.fillStyle = 'rgba(10, 12, 20, 0.92)'; ctx.fillRect(10, 10, 425, 72); ctx.strokeStyle = '#2d3552'; ctx.strokeRect(10, 10, 425, 72);
+    ctx.fillStyle = '#00ffea'; ctx.font = 'bold 11.5px "Courier New", monospace';
+    ctx.fillText('EP #' + rlBrain.attempt + ' | X: ' + getDistanceMeters() + 'm (MAX: ' + rlBrain.maxDistMeters + 'm)', 16, 26);
+    ctx.fillStyle = '#ffd700'; ctx.fillText('STAGE ' + rlBrain.activeStageText + ' | LIDAR: ' + rlBrain.activeContextText, 16, 42);
+
+    for (var hi = 0; hi < player.maxHp; hi++) { var ox = 18 + hi * 20, oy = 50; ctx.fillStyle = hi < player.hp ? '#e62e49' : '#2e222b'; ctx.beginPath(); ctx.arc(ox + 6, oy + 6, 6, 0, Math.PI * 2); ctx.fill(); }
+    ctx.fillStyle = '#4eed84'; ctx.fillText('CLEARS: ' + ep.hazardsCleared + ' | THREATS: ' + ep.ghostKills, 130, 60);
+  }
+
+  function updateAIPanelUI() {
+    if (!player || !ep) return;
+    safeSetText('ui-gen', '#' + rlBrain.attempt);
+    safeSetText('ui-stage', rlBrain.activeStageText);
+    safeSetText('ui-mode', rlBrain.activeContextText);
+    var vVal = safeNum(rlBrain.lastCriticVal, 0);
+    safeSetText('ui-seed', (vVal >= 0 ? '+' : '') + vVal.toFixed(1));
+    safeSetText('ui-best', (rlBrain.bestReward !== null ? rlBrain.bestReward : 0).toLocaleString());
+    safeSetText('ui-max-dist', rlBrain.maxDistMeters + 'm (Sec ' + rlBrain.maxSector + ')');
+    safeSetText('ui-sps', displayedSPS.toLocaleString());
+
+    for (var a = 0; a < NUM_ACTIONS; a++) {
+      var pPct = (safeNum(rlBrain.lastProbs[a], 0.167) * 100).toFixed(1) + '%';
+      var advVal = safeNum(rlBrain.lastAdv[a], 0);
+      var advStr = (advVal >= 0 ? '+' : '') + advVal.toFixed(1);
+      var el = document.getElementById('ui-w' + a);
+      if (el) {
+        el.textContent = pPct + ' (A:' + advStr + ')';
+        el.className = 'stat-val ' + (a === ep.currentAction ? 'pos' : (advVal < -1.0 ? 'neg' : ''));
+      }
+    }
+
+    var liveHpBonus = player.hp * 1000 + ep.heartsKeptBonus;
+    safeSetText('ui-r-dist', (ep.distReward >= 0 ? '+' : '') + Math.round(ep.distReward).toLocaleString());
+    safeSetText('ui-r-evade', '+' + ep.evadeReward.toLocaleString() + ' (' + ep.hazardsCleared + ')');
+    safeSetText('ui-r-sec', '+' + ep.sectorReward.toLocaleString() + ' (' + ep.sectorsCleared + ')');
+    safeSetText('ui-r-ghost', '+' + ep.ghostReward.toLocaleString() + ' (' + ep.ghostKills + ')');
+    safeSetText('ui-r-coin', '+' + ep.coinReward.toLocaleString() + ' (' + ep.coinsCollected + ')');
+    safeSetText('ui-r-hp', '+' + liveHpBonus.toLocaleString() + ' (' + player.hp + ')');
+    safeSetText('ui-r-bul', '-' + ep.bulletPenalty.toLocaleString() + ' (' + ep.bulletsFired + ')');
+    safeSetText('ui-r-dmg', '-' + (ep.damagePenalty + ep.loopPenalty).toLocaleString() + ' (' + ep.heartsLost + ')');
+    safeSetText('ui-r-total', getNetReward().toLocaleString());
+
+    var histArr = Array.isArray(rlBrain.fullHistory) ? rlBrain.fullHistory : [];
+    var recent = histArr.slice(-15).reverse();
+    var listEl = document.getElementById('history-list');
+    if (listEl) {
+      var htmlRows = [];
+      for (var rIdx = 0; rIdx < recent.length; rIdx++) {
+        var h = recent[rIdx];
+        htmlRows.push('<div><span class="gold">#' + h.attempt + '</span>: <span class="cyan">X:' + h.dist + 'm</span> (Max:' + (h.recordDist || h.dist) + 'm) | Clr:' + (h.evades || 0) + ' | ' + h.cause + '</div>');
+      }
+      listEl.innerHTML = htmlRows.join('');
+    }
+
+    var chart = document.getElementById('chart-canvas');
+    if (!chart) return;
+    var cctx = chart.getContext('2d');
+    cctx.clearRect(0, 0, chart.width, chart.height);
+
+    if (histArr.length > 1) {
+      var maxD = 25;
+      for (var mi = 0; mi < histArr.length; mi++) {
+        var dVal = histArr[mi].recordDist || histArr[mi].dist || 0;
+        if (dVal > maxD) maxD = dVal;
+      }
+      var padL = 24, padR = 6, padT = 6, padB = 12;
+      var gw = chart.width - padL - padR, gh = chart.height - padT - padB;
+
+      cctx.fillStyle = '#7a88a8'; cctx.font = '8px "Courier New", monospace';
+      cctx.fillText(Math.round(maxD) + 'm', 2, padT + 6); cctx.fillText('0m', 4, padT + gh);
+      cctx.fillText('#1', padL, chart.height - 2); cctx.fillText('#' + histArr[histArr.length - 1].attempt, chart.width - 28, chart.height - 2);
+
+      cctx.strokeStyle = 'rgba(0, 255, 234, 0.55)'; cctx.lineWidth = 1.2; cctx.beginPath();
+      for (var i1 = 0; i1 < histArr.length; i1++) {
+        var cx1 = padL + (i1 / (histArr.length - 1)) * gw; var cy1 = padT + gh - (histArr[i1].dist / maxD) * gh;
+        if (i1 === 0) cctx.moveTo(cx1, cy1); else cctx.lineTo(cx1, cy1);
+      }
+      cctx.stroke();
+
+      cctx.strokeStyle = '#4eed84'; cctx.lineWidth = 1.6; cctx.beginPath();
+      var sumWindow = 0, winSize = 10;
+      for (var i2 = 0; i2 < histArr.length; i2++) {
+        sumWindow += histArr[i2].dist;
+        if (i2 >= winSize) sumWindow -= histArr[i2 - winSize].dist;
+        var avgX = sumWindow / Math.min(i2 + 1, winSize);
+        var cx2 = padL + (i2 / (histArr.length - 1)) * gw; var cy2 = padT + gh - (avgX / maxD) * gh;
+        if (i2 === 0) cctx.moveTo(cx2, cy2); else cctx.lineTo(cx2, cy2);
+      }
+      cctx.stroke();
+
+      cctx.strokeStyle = '#ffd700'; cctx.lineWidth = 1.8; cctx.beginPath();
+      var runningMax = 0;
+      for (var i3 = 0; i3 < histArr.length; i3++) {
+        if (histArr[i3].dist > runningMax) runningMax = histArr[i3].dist;
+        var cx3 = padL + (i3 / (histArr.length - 1)) * gw; var cy3 = padT + gh - (runningMax / maxD) * gh;
+        if (i3 === 0) cctx.moveTo(cx3, cy3); else cctx.lineTo(cx3, cy3);
+      }
+      cctx.stroke();
+    }
+  }
+
+  // ===========================================================================
+  // 9. BUTTON LISTENERS & EXPORTERS
+  // ===========================================================================
+  window.toggleAI = function() {
+    aiEnabled = !aiEnabled;
+    var b = document.getElementById('btn-ai');
+    if (b) {
+      b.textContent = aiEnabled ? '[B] PPO-GAE Robot Brain: ON' : '[B] Manual Teleop (Training!)';
+      b.classList.toggle('active', aiEnabled);
+    }
+  };
+
+  window.togglePause = function() {
+    isPaused = !isPaused;
+    var b = document.getElementById('btn-pause');
+    if (b) {
+      b.textContent = isPaused ? '[P] RESUME TEST' : '[P] Pause / Stop';
+      b.classList.toggle('active', isPaused);
+    }
+    setStatus(isPaused ? 'PAUSED' : 'RUNNING', false);
+    if (isPaused) updateAIPanelUI();
+  };
+
+  bindClickSafe('btn-ai', window.toggleAI);
+  bindClickSafe('btn-pause', window.togglePause);
+  bindClickSafe('btn-wipe', wipeBrain);
+
+  var spdBtns = document.querySelectorAll('[data-spd]');
+  for (var bIdx = 0; bIdx < spdBtns.length; bIdx++) {
+    spdBtns[bIdx].addEventListener('click', function() {
+      this.blur();
+      targetSimSpeed = Math.max(1, Math.min(100000, Number(this.getAttribute('data-spd')) || 1));
+      safeSetText('speed-label', targetSimSpeed.toLocaleString() + 'x');
+      for (var i = 0; i < spdBtns.length; i++) {
+        spdBtns[i].classList.toggle('active', targetSimSpeed === Number(spdBtns[i].getAttribute('data-spd')));
+      }
+    });
+  }
+
+  function triggerDownload(url, filename) {
+    var a = document.createElement('a'); a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  }
+
+  bindClickSafe('btn-dl-png', function() {
+    var expCanvas = document.createElement('canvas'); expCanvas.width = 1280; expCanvas.height = 700;
+    var ectx = expCanvas.getContext('2d');
+    ectx.fillStyle = '#070910'; ectx.fillRect(0, 0, 1280, 700);
+    ectx.fillStyle = '#ffd700'; ectx.font = 'bold 22px "Courier New", monospace';
+    ectx.fillText('SHIPIUS MAGOS 5-STAGE CURRICULUM LAB: MAX X (m) VS. EPISODES', 50, 42);
+    ectx.fillStyle = '#00ffea'; ectx.font = '15px "Courier New", monospace';
+    ectx.fillText('Episodes: ' + rlBrain.fullHistory.length + ' | Record Max X: ' + rlBrain.maxDistMeters + 'm | Max Score: ' + (rlBrain.bestReward !== null ? rlBrain.bestReward : 0), 50, 72);
+    var px = 90, py = 125, pw = 1130, ph = 500;
+    ectx.strokeStyle = '#252c44'; ectx.lineWidth = 2; ectx.strokeRect(px, py, pw, ph);
+
+    var hist = rlBrain.fullHistory;
+    if (hist.length >= 2) {
+      var maxD = 30; for (var m = 0; m < hist.length; m++) if (hist[m].dist > maxD) maxD = hist[m].dist;
+      ectx.font = '12px "Courier New", monospace';
+      for (var i = 0; i <= 5; i++) {
+        var gy = py + (ph * i) / 5; ectx.strokeStyle = '#141929'; ectx.beginPath(); ectx.moveTo(px, gy); ectx.lineTo(px + pw, gy); ectx.stroke();
+        ectx.fillStyle = '#8c97b2'; ectx.fillText(((maxD * (5 - i)) / 5).toFixed(1) + 'm', 20, gy + 4);
+      }
+      ectx.strokeStyle = 'rgba(0, 255, 234, 0.55)'; ectx.lineWidth = 1.8; ectx.beginPath();
+      for (var j = 0; j < hist.length; j++) {
+        var cx = px + (j / (hist.length - 1)) * pw; var cy = py + ph - (hist[j].dist / maxD) * ph;
+        if (j === 0) ectx.moveTo(cx, cy); else ectx.lineTo(cx, cy);
+      } ectx.stroke();
+      ectx.strokeStyle = '#ffd700'; ectx.lineWidth = 3; ectx.beginPath();
+      var bestSoFar = 0;
+      for (var k = 0; k < hist.length; k++) {
+        if (hist[k].dist > bestSoFar) bestSoFar = hist[k].dist;
+        var cxk = px + (k / (hist.length - 1)) * pw; var cyk = py + ph - (bestSoFar / maxD) * ph;
+        if (k === 0) ectx.moveTo(cxk, cyk); else ectx.lineTo(cxk, cyk);
+      } ectx.stroke();
+    }
+    triggerDownload(expCanvas.toDataURL('image/png'), 'shipius_curriculum_ppo_gen' + rlBrain.attempt + '.png');
+  });
+
+  bindClickSafe('btn-dl-csv', function() {
+    var headers = ['Episode,MaxX_Meters,RecordMaxX_Meters,PeakScore,FinalScore,SectorsCleared,ObstaclesCleared,GhostsKilled,CoinsCollected,BulletsFired,HeartsLost,FramesAlive,Cause'];
+    var rows = [];
+    for (var i = 0; i < rlBrain.fullHistory.length; i++) {
+      var h = rlBrain.fullHistory[i];
+      rows.push([h.attempt, h.dist, h.recordDist || h.dist, h.peakScore || h.reward, h.reward, h.sectors, h.evades || 0, h.ghosts, h.coins, h.bullets, h.hpLost, h.frames, h.cause].join(','));
+    }
+    triggerDownload(URL.createObjectURL(new Blob([headers.concat(rows).join('\n')], { type: 'text/csv;charset=utf-8;' })), 'shipius_curriculum_ppo_gen' + rlBrain.attempt + '.csv');
+  });
+
+  bindClickSafe('btn-dl-json', function() {
+    triggerDownload(URL.createObjectURL(new Blob([JSON.stringify(rlBrain, null, 2)], { type: 'application/json' })), 'shipius_curriculum_ppo_gen' + rlBrain.attempt + '.json');
+  });
+
+  bindClickSafe('btn-ul-json', function() {
+    var fileInput = document.getElementById('file-input-json');
+    if (fileInput) fileInput.click();
+  });
+
+  var fIn = document.getElementById('file-input-json');
+  if (fIn) {
+    fIn.addEventListener('change', function(e) {
+      var file = e.target.files[0]; if (!file) return;
+      var reader = new FileReader();
+      reader.onload = function(evt) {
+        try { sanitizeBrain(JSON.parse(evt.target.result)); saveRLBrain(); updateAIPanelUI(); setStatus("LOADED BRAIN #" + rlBrain.attempt, false); } catch (err) { setStatus("INVALID JSON", true); }
+      }; reader.readAsText(file);
+    });
+  }
+
+  // ===========================================================================
+  // 10. SELF-RECOVERING MAIN ENGINE LOOP
+  // ===========================================================================
+  function mainLoop() {
+    try {
+      var now = Date.now();
+      if (now - lastSpsTime >= 1000) {
+        displayedSPS = actualStepsThisSec; actualStepsThisSec = 0; lastSpsTime = now;
+      }
+
+      if (!isPaused) {
+        frameCounter++;
+        if (frameCounter % 15 === 1) {
+          setStatus('CURRICULUM PPO | FRAME #' + frameCounter + ' (' + displayedSPS.toLocaleString() + ' SPS)', false);
+        }
+        if (targetSimSpeed <= 20) {
+          for (var s = 0; s < targetSimSpeed; s++) stepPhysics();
+        } else {
+          var deadline = Date.now() + 12;
+          var stepsRun = 0;
+          while (stepsRun < targetSimSpeed && Date.now() < deadline) {
+            for (var b = 0; b < 60 && stepsRun < targetSimSpeed; b++, stepsRun++) stepPhysics();
+          }
+        }
+      }
+      renderWorld();
+      if (frameCounter % 5 === 0) updateAIPanelUI();
+    } catch (err) {
+      setStatus('RECOVERED: ' + err.message, true);
+      startNewAttempt();
+    }
+    window.requestAnimationFrame(mainLoop);
+  }
+
+  loadRLBrain();
+  syncSliders();
+  startNewAttempt();
+  renderWorld();
+  updateAIPanelUI();
+  setStatus('CURRICULUM PPO | FRAME #1', false);
+  window.requestAnimationFrame(mainLoop);
+})();
+</script>
+
+</body>
+</html>
